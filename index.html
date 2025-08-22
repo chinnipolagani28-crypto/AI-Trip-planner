@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Travel Planner ✈️</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: #f5f7fa; color: #333; line-height: 1.6; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; margin-bottom: 30px; padding: 20px 0; background: linear-gradient(135deg, #2c3e50, #1a2530); color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        h2 { margin-bottom: 15px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px; }
+        .app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); transition: transform 0.3s ease; }
+        .card:hover { transform: translateY(-5px); }
+        #map { height: 400px; width: 100%; border-radius: 8px; z-index: 1; }
+        .rupee { font-family: 'Noto Sans', Arial, sans-serif; }
+        
+        /* Input and Button Styles */
+        .input-group { margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
+        input, select, button { padding: 12px 15px; border-radius: 6px; border: 1px solid #ddd; }
+        input:focus, select:focus { outline: none; border-color: #3498db; box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2); }
+        button { background: #3498db; color: white; border: none; cursor: pointer; transition: background 0.3s; font-weight: 500; }
+        button:hover { background: #2980b9; }
+        button.secondary { background: #2ecc71; }
+        button.secondary:hover { background: #27ae60; }
+        button.warning { background: #e74c3c; }
+        button.warning:hover { background: #c0392b; }
+        
+        /* Tabs */
+        .tabs { display: flex; margin-bottom: 15px; border-bottom: 1px solid #ddd; }
+        .tab { padding: 10px 20px; cursor: pointer; border-bottom: 3px solid transparent; }
+        .tab.active { border-bottom: 3px solid #3498db; color: #3498db; font-weight: 600; }
+        
+        /* Lists */
+        .activities-list, .expense-list, .hotel-list, .food-list { margin: 15px 0; }
+        .list-item { padding: 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .list-item:hover { background: #e8f4fc; }
+        .delete-btn { color: #e74c3c; cursor: pointer; padding: 5px; }
+        
+        /* Budget Analysis */
+        .budget-analysis { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .progress-bar { height: 20px; background: #ecf0f1; border-radius: 10px; margin: 10px 0; overflow: hidden; }
+        .progress { height: 100%; background: #2ecc71; border-radius: 10px; transition: width 0.5s; }
+        .progress.warning { background: #f39c12; }
+        .progress.danger { background: #e74c3c; }
+        
+        /* Recommendations */
+        .recommendation-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        .recommendation-card { padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .recommendation-card h4 { color: #2c3e50; margin-bottom: 8px; }
+        .recommendation-card p { color: #7f8c8d; font-size: 0.9rem; }
+        .rating { color: #f1c40f; margin: 5px 0; }
+        
+        /* AI Breakdown */
+        .ai-breakdown { background: #e8f4fc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        
+        /* Responsive */
+        @media (max-width: 1100px) { .app-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { 
+            .input-group { flex-direction: column; }
+            .recommendation-cards { grid-template-columns: 1fr; }
+        }
+        
+        /* Icons */
+        .icon { margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-plane icon"></i>AI Travel Planner</h1>
+            <p>Your smart trip assistant with AI budgeting, hotel finder, and food recommendations</p>
+        </header>
+
+        <div class="app-grid">
+            <!-- Trip Creation -->
+            <section class="card trip-creation">
+                <h2><i class="fas fa-plus-circle icon"></i>Create New Trip</h2>
+                <div class="input-group">
+                    <input type="text" id="trip-name" placeholder="Trip name">
+                    <input type="date" id="start-date">
+                    <input type="date" id="end-date">
+                    <input type="number" id="travelers" placeholder="Travelers" min="1" value="1">
+                </div>
+                <div class="input-group">
+                    <button id="create-trip" class="secondary"><i class="fas fa-save icon"></i>Create Trip</button>
+                </div>
+            </section>
+
+            <!-- Map Section -->
+            <section class="card map-section">
+                <h2><i class="fas fa-map-marker-alt icon"></i>Destinations</h2>
+                <div id="map"></div>
+                <div class="input-group">
+                    <button id="add-destination"><i class="fas fa-plus icon"></i>Add Destination</button>
+                    <button id="optimize-route" class="secondary"><i class="fas fa-route icon"></i>Optimize Route</button>
+                </div>
+            </section>
+
+            <!-- Itinerary -->
+            <section class="card itinerary">
+                <h2><i class="fas fa-calendar-alt icon"></i>Your Itinerary</h2>
+                <div class="tabs days-tabs"></div>
+                <div class="activities-list"></div>
+                <div class="input-group">
+                    <input type="text" id="activity-name" placeholder="Activity">
+                    <input type="time" id="activity-time">
+                    <button id="add-activity"><i class="fas fa-plus icon"></i>Add Activity</button>
+                </div>
+            </section>
+
+            <!-- Budget Section -->
+            <section class="card budget">
+                <h2><i class="fas fa-wallet icon"></i>Budget (<span class="rupee">₹</span>)</h2>
+                <div class="input-group">
+                    <button id="ai-budget-btn" class="secondary"><i class="fas fa-robot icon"></i>Get AI Suggestions</button>
+                </div>
+                <div class="input-group">
+                    <span>Total: <span id="total-budget" class="rupee">₹0</span></span>
+                    <input type="number" id="budget-limit" placeholder="Budget limit">
+                    <button id="set-budget"><i class="fas fa-check icon"></i>Set Budget</button>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="expense-name" placeholder="Expense">
+                    <input type="number" id="expense-amount" placeholder="Amount">
+                    <select id="expense-category">
+                        <option value="transport">Transport</option>
+                        <option value="accommodation">Accommodation</option>
+                        <option value="food">Food</option>
+                        <option value="activities">Activities</option>
+                        <option value="shopping">Shopping</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <button id="add-expense"><i class="fas fa-plus icon"></i>Add</button>
+                </div>
+                <div class="expense-list"></div>
+                
+                <!-- Budget Analysis -->
+                <div class="budget-analysis">
+                    <h3><i class="fas fa-chart-pie icon"></i>Budget Analysis</h3>
+                    <div id="category-breakdown"></div>
+                    <div class="progress-bar">
+                        <div class="progress" id="budget-progress" style="width: 0%"></div>
+                    </div>
+                    <div id="budget-status">Budget utilization: 0%</div>
+                </div>
+            </section>
+            
+            <!-- Hotel Finder -->
+            <section class="card hotel-finder">
+                <h2><i class="fas fa-hotel icon"></i>Hotel Finder</h2>
+                <div class="input-group">
+                    <input type="text" id="hotel-location" placeholder="Location">
+                    <input type="date" id="check-in" placeholder="Check-in">
+                    <input type="date" id="check-out" placeholder="Check-out">
+                    <button id="find-hotels" class="secondary"><i class="fas fa-search icon"></i>Find Hotels</button>
+                </div>
+                <div class="hotel-list"></div>
+            </section>
+            
+            <!-- Food Recommendations -->
+            <section class="card food-recommendations">
+                <h2><i class="fas fa-utensils icon"></i>Food Recommendations</h2>
+                <div class="input-group">
+                    <input type="text" id="food-location" placeholder="Location">
+                    <select id="cuisine-type">
+                        <option value="any">Any Cuisine</option>
+                        <option value="indian">Indian</option>
+                        <option value="italian">Italian</option>
+                        <option value="chinese">Chinese</option>
+                        <option value="mexican">Mexican</option>
+                        <option value="thai">Thai</option>
+                    </select>
+                    <button id="find-food" class="secondary"><i class="fas fa-search icon"></i>Find Food</button>
+                </div>
+                <div class="food-list"></div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const TripPlanner = {
+                state: {
+                    currentTrip: null,
+                    destinations: [],
+                    activities: [],
+                    expenses: [],
+                    currentDay: 1,
+                    map: null,
+                    markers: [],
+                    hotels: [],
+                    foods: [],
+                    budgetLimit: 0
+                },
+
+                // Initialize the app
+                init() {
+                    this.initMap();
+                    this.setupEventListeners();
+                    this.setDefaultDates();
+                    this.loadState();
+                },
+
+                // Initialize the map
+                initMap() {
+                    this.state.map = L.map('map').setView([20.5937, 78.9629], 5);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(this.state.map);
+                },
+
+                // Set default dates for inputs
+                setDefaultDates() {
+                    const today = new Date();
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    
+                    document.getElementById('start-date').value = today.toISOString().split('T')[0];
+                    document.getElementById('end-date').value = tomorrow.toISOString().split('T')[0];
+                    
+                    // Set check-in/check-out dates
+                    document.getElementById('check-in').value = today.toISOString().split('T')[0];
+                    document.getElementById('check-out').value = tomorrow.toISOString().split('T')[0];
+                },
+
+                // Setup all event listeners
+                setupEventListeners() {
+                    document.getElementById('create-trip').addEventListener('click', () => this.createTrip());
+                    document.getElementById('add-destination').addEventListener('click', () => this.addDestination());
+                    document.getElementById('optimize-route').addEventListener('click', () => this.optimizeRoute());
+                    document.getElementById('add-activity').addEventListener('click', () => this.addActivity());
+                    document.getElementById('add-expense').addEventListener('click', () => this.addExpense());
+                    document.getElementById('ai-budget-btn').addEventListener('click', () => this.getAIBudgetSuggestion());
+                    document.getElementById('set-budget').addEventListener('click', () => this.setBudget());
+                    document.getElementById('find-hotels').addEventListener('click', () => this.findHotels());
+                    document.getElementById('find-food').addEventListener('click', () => this.findFood());
+                },
+
+                // AI Budget Planner Module
+                AIBudgetPlanner: {
+                    trainingData: [
+                        { destination: "Goa", days: 3, travelers: 2, budget: 25000, breakdown: { transport: 6000, accommodation: 10000, food: 6000, activities: 3000 } },
+                        { destination: "Himachal", days: 5, travelers: 2, budget: 35000, breakdown: { transport: 8000, accommodation: 12000, food: 9000, activities: 6000 } },
+                        { destination: "Kerala", days: 4, travelers: 2, budget: 28000, breakdown: { transport: 5000, accommodation: 12000, food: 7000, activities: 4000 } },
+                        { destination: "Rajasthan", days: 5, travelers: 2, budget: 30000, breakdown: { transport: 7000, accommodation: 10000, food: 8000, activities: 5000 } }
+                    ],
+
+                    predictBudget(destination, days, travelers) {
+                        const similarTrips = this.trainingData.filter(trip => 
+                            trip.destination.toLowerCase().includes(destination.toLowerCase()) && trip.travelers === travelers
+                        );
+                        
+                        if (similarTrips.length > 0) {
+                            const trip = similarTrips[0];
+                            const scaledBudget = Math.round(trip.budget * (days/trip.days) * 1.1);
+                            
+                            // Scale each category proportionally
+                            const scaledBreakdown = {};
+                            for (const category in trip.breakdown) {
+                                scaledBreakdown[category] = Math.round(trip.breakdown[category] * (days/trip.days) * 1.1);
+                            }
+                            
+                            return { total: scaledBudget, breakdown: scaledBreakdown };
+                        }
+                        
+                        // Default estimation if no similar trips found
+                        const defaultBudget = days * travelers * 2000;
+                        return { 
+                            total: defaultBudget, 
+                            breakdown: { 
+                                transport: defaultBudget * 0.3, 
+                                accommodation: defaultBudget * 0.4, 
+                                food: defaultBudget * 0.2, 
+                                activities: defaultBudget * 0.1 
+                            } 
+                        };
+                    },
+
+                    categorizeExpense(name) {
+                        const keywords = {
+                            transport: ['taxi', 'flight', 'train', 'bus', 'metro', 'cab', 'uber', 'ola'],
+                            accommodation: ['hotel', 'hostel', 'resort', 'stay', 'lodging'],
+                            food: ['restaurant', 'dinner', 'lunch', 'breakfast', 'cafe', 'food'],
+                            activities: ['tour', 'ticket', 'museum', 'park', 'activity', 'entrance'],
+                            shopping: ['shop', 'mall', 'market', 'souvenir', 'buy']
+                        };
+                        
+                        name = name.toLowerCase();
+                        for (const [category, terms] of Object.entries(keywords)) {
+                            if (terms.some(term => name.includes(term))) return category;
+                        }
+                        return 'other';
+                    }
+                },
+
+                // Hotel Finder Module
+                HotelFinder: {
+                    findHotels(location, checkIn, checkOut) {
+                        // Simulated API call with mock data
+                        const mockHotels = [
+                            { name: "Grand Plaza Hotel", price: 4500, rating: 4.5, amenities: "WiFi, Pool, Spa", location: location || "City Center" },
+                            { name: "Seaside Resort", price: 6200, rating: 4.8, amenities: "Beachfront, Restaurant, Bar", location: location || "Beach" },
+                            { name: "Budget Inn", price: 1800, rating: 3.7, amenities: "WiFi, Breakfast", location: location || "Downtown" },
+                            { name: "Mountain View Lodge", price: 3800, rating: 4.2, amenities: "Mountain View, Restaurant", location: location || "Mountains" }
+                        ];
+                        
+                        return mockHotels;
+                    }
+                },
+
+                // Food Recommendation Module
+                FoodRecommender: {
+                    getRecommendations(location, cuisine) {
+                        // Simulated API call with mock data
+                        const mockRestaurants = [
+                            { name: "Spice Garden", cuisine: "Indian", rating: 4.7, price: 800, specialty: "Butter Chicken", location: location || "City Center" },
+                            { name: "Pasta Paradise", cuisine: "Italian", rating: 4.5, price: 1200, specialty: "Truffle Pasta", location: location || "Downtown" },
+                            { name: "Dragon Palace", cuisine: "Chinese", rating: 4.3, price: 1000, specialty: "Dim Sum", location: location || "Chinatown" },
+                            { name: "Sizzling Salsa", cuisine: "Mexican", rating: 4.6, price: 900, specialty: "Tacos", location: location || "Market Street" }
+                        ];
+                        
+                        if (cuisine && cuisine !== "any") {
+                            return mockRestaurants.filter(r => r.cuisine.toLowerCase() === cuisine.toLowerCase());
+                        }
+                        
+                        return mockRestaurants;
+                    }
+                },
+
+                // Core application methods
+                createTrip() {
+                    const name = document.getElementById('trip-name').value;
+                    const startDate = document.getElementById('start-date').value;
+                    const endDate = document.getElementById('end-date').value;
+                    const travelers = parseInt(document.getElementById('travelers').value) || 1;
+                    
+                    if (!name || !startDate || !endDate) {
+                        alert("Please fill all trip details");
+                        return;
+                    }
+                    
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    
+                    if (start >= end) {
+                        alert("End date must be after start date");
+                        return;
+                    }
+                    
+                    const days = Math.ceil((end - start) / (1000*60*60*24)) + 1;
+                    
+                    const trip = {
+                        name,
+                        startDate,
+                        endDate,
+                        days,
+                        travelers
+                    };
+                    
+                    this.state.currentTrip = trip;
+                    this.renderDaysTabs();
+                    alert(`Trip "${trip.name}" created for ${days} days!`);
+                },
+
+                addDestination() {
+                    if (!this.state.currentTrip) {
+                        alert("Please create a trip first");
+                        return;
+                    }
+                    
+                    const name = prompt("Destination name:");
+                    if (name) {
+                        // Generate a random location in India for demo purposes
+                        const lat = 20.5937 + (Math.random() * 10 - 5);
+                        const lng = 78.9629 + (Math.random() * 10 - 5);
+                        
+                        const marker = L.marker([lat, lng])
+                            .addTo(this.state.map)
+                            .bindPopup(name);
+                            
+                        this.state.destinations.push({ name, lat, lng, marker });
+                        
+                        // Center map on the new destination
+                        this.state.map.setView([lat, lng], 6);
+                    }
+                },
+
+                optimizeRoute() {
+                    if (this.state.destinations.length < 2) {
+                        alert("Add at least 2 destinations to optimize route");
+                        return;
+                    }
+                    
+                    alert("Route optimization would connect your destinations in the most efficient order using a routing API in a real application.");
+                },
+
+                addActivity() {
+                    if (!this.state.currentTrip) {
+                        alert("Please create a trip first");
+                        return;
+                    }
+                    
+                    const name = document.getElementById('activity-name').value;
+                    const time = document.getElementById('activity-time').value;
+                    
+                    if (!name || !time) {
+                        alert("Please enter activity name and time");
+                        return;
+                    }
+                    
+                    const activity = {
+                        name,
+                        time,
+                        day: this.state.currentDay
+                    };
+                    
+                    this.state.activities.push(activity);
+                    this.renderActivities();
+                    
+                    // Clear inputs
+                    document.getElementById('activity-name').value = '';
+                    document.getElementById('activity-time').value = '';
+                },
+
+                addExpense() {
+                    if (!this.state.currentTrip) {
+                        alert("Please create a trip first");
+                        return;
+                    }
+                    
+                    const name = document.getElementById('expense-name').value;
+                    const amount = parseFloat(document.getElementById('expense-amount').value);
+                    const category = document.getElementById('expense-category').value;
+                    
+                    if (!name || isNaN(amount) || amount <= 0) {
+                        alert("Please enter valid expense details");
+                        return;
+                    }
+                    
+                    // Use AI to categorize if "other" is selected
+                    const finalCategory = category === 'other' ? 
+                        this.AIBudgetPlanner.categorizeExpense(name) : category;
+                    
+                    const expense = {
+                        name,
+                        amount,
+                        category: finalCategory,
+                        date: new Date().toLocaleDateString()
+                    };
+                    
+                    this.state.expenses.push(expense);
+                    this.renderExpenses();
+                    this.updateBudgetAnalysis();
+                    
+                    // Clear inputs
+                    document.getElementById('expense-name').value = '';
+                    document.getElementById('expense-amount').value = '';
+                },
+
+                getAIBudgetSuggestion() {
+                    if (!this.state.currentTrip || this.state.destinations.length === 0) {
+                        alert("Please create a trip and add at least one destination first");
+                        return;
+                    }
+                    
+                    const destination = this.state.destinations[0].name;
+                    const days = this.state.currentTrip.days;
+                    const travelers = this.state.currentTrip.travelers;
+                    
+                    const suggestion = this.AIBudgetPlanner.predictBudget(
+                        destination, 
+                        days, 
+                        travelers
+                    );
+                    
+                    document.getElementById('budget-limit').value = suggestion.total;
+                    this.state.budgetLimit = suggestion.total;
+                    
+                    // Show breakdown
+                    let breakdownHTML = `<div class="ai-breakdown"><h4>AI Budget Breakdown for ${destination}:</h4>`;
+                    for (const category in suggestion.breakdown) {
+                        breakdownHTML += `<p>${category.charAt(0).toUpperCase() + category.slice(1)}: ₹${suggestion.breakdown[category]}</p>`;
+                    }
+                    breakdownHTML += `</div>`;
+                    
+                    document.getElementById('category-breakdown').innerHTML = breakdownHTML;
+                    this.updateBudgetAnalysis();
+                    
+                    alert(`AI suggests ₹${suggestion.total} for ${days} days in ${destination} for ${travelers} traveler(s)`);
+                },
+
+                setBudget() {
+                    const budget = parseFloat(document.getElementById('budget-limit').value);
+                    
+                    if (isNaN(budget) || budget <= 0) {
+                        alert("Please enter a valid budget amount");
+                        return;
+                    }
+                    
+                    this.state.budgetLimit = budget;
+                    this.updateBudgetAnalysis();
+                    alert(`Budget set to ₹${budget}`);
+                },
+
+                findHotels() {
+                    if (!this.state.currentTrip) {
+                        alert("Please create a trip first");
+                        return;
+                    }
+                    
+                    const location = document.getElementById('hotel-location').value || 
+                                   (this.state.destinations[0] ? this.state.destinations[0].name : '');
+                    const checkIn = document.getElementById('check-in').value;
+                    const checkOut = document.getElementById('check-out').value;
+                    
+                    if (!location) {
+                        alert("Please enter a location or add a destination first");
+                        return;
+                    }
+                    
+                    const hotels = this.HotelFinder.findHotels(location, checkIn, checkOut);
+                    this.state.hotels = hotels;
+                    this.renderHotels();
+                },
+
+                findFood() {
+                    if (!this.state.currentTrip) {
+                        alert("Please create a trip first");
+                        return;
+                    }
+                    
+                    const location = document.getElementById('food-location').value || 
+                                   (this.state.destinations[0] ? this.state.destinations[0].name : '');
+                    const cuisine = document.getElementById('cuisine-type').value;
+                    
+                    if (!location) {
+                        alert("Please enter a location or add a destination first");
+                        return;
+                    }
+                    
+                    const foods = this.FoodRecommender.getRecommendations(location, cuisine);
+                    this.state.foods = foods;
+                    this.renderFoods();
+                },
+
+                // Rendering methods
+                renderDaysTabs() {
+                    if (!this.state.currentTrip) return;
+                    
+                    const tabsContainer = document.querySelector('.days-tabs');
+                    tabsContainer.innerHTML = '';
+                    
+                    for (let i = 1; i <= this.state.currentTrip.days; i++) {
+                        const tab = document.createElement('div');
+                        tab.className = `tab ${i === this.state.currentDay ? 'active' : ''}`;
+                        tab.textContent = `Day ${i}`;
+                        tab.addEventListener('click', () => {
+                            this.state.currentDay = i;
+                            this.renderDaysTabs();
+                            this.renderActivities();
+                        });
+                        
+                        tabsContainer.appendChild(tab);
+                    }
+                },
+
+                renderActivities() {
+                    const activitiesList = document.querySelector('.activities-list');
+                    activitiesList.innerHTML = '';
+                    
+                    const dayActivities = this.state.activities.filter(a => a.day === this.state.currentDay);
+                    
+                    if (dayActivities.length === 0) {
+                        activitiesList.innerHTML = '<p>No activities planned for this day.</p>';
+                        return;
+                    }
+                    
+                    dayActivities.forEach(activity => {
+                        const item = document.createElement('div');
+                        item.className = 'list-item';
+                        item.innerHTML = `
+                            <div>
+                                <strong>${activity.time}</strong> - ${activity.name}
+                            </div>
+                            <div class="delete-btn" data-activity="${activity.name}">
+                                <i class="fas fa-trash"></i>
+                            </div>
+                        `;
+                        
+                        activitiesList.appendChild(item);
+                    });
+                    
+                    // Add event listeners to delete buttons
+                    document.querySelectorAll('.delete-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            const activityName = e.currentTarget.getAttribute('data-activity');
+                            this.deleteActivity(activityName);
+                        });
+                    });
+                },
+
+                renderExpenses() {
+                    const expenseList = document.querySelector('.expense-list');
+                    expenseList.innerHTML = '';
+                    
+                    if (this.state.expenses.length === 0) {
+                        expenseList.innerHTML = '<p>No expenses added yet.</p>';
+                        return;
+                    }
+                    
+                    this.state.expenses.forEach(expense => {
+                        const item = document.createElement('div');
+                        item.className = 'list-item';
+                        item.innerHTML = `
+                            <div>
+                                <strong>${expense.name}</strong> (${expense.category}) - ₹${expense.amount}
+                            </div>
+                            <div class="delete-btn" data-expense="${expense.name}">
+                                <i class="fas fa-trash"></i>
+                            </div>
+                        `;
+                        
+                        expenseList.appendChild(item);
+                    });
+                    
+                    // Update total
+                    const total = this.state.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+                    document.getElementById('total-budget').textContent = `₹${total}`;
+                    
+                    // Add event listeners to delete buttons
+                    document.querySelectorAll('.delete-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            const expenseName = e.currentTarget.getAttribute('data-expense');
+                            this.deleteExpense(expenseName);
+                        });
+                    });
+                },
+
+                renderHotels() {
+                    const hotelList = document.querySelector('.hotel-list');
+                    hotelList.innerHTML = '';
+                    
+                    if (this.state.hotels.length === 0) {
+                        hotelList.innerHTML = '<p>No hotels found.</p>';
+                        return;
+                    }
+                    
+                    this.state.hotels.forEach(hotel => {
+                        const stars = '★'.repeat(Math.floor(hotel.rating));
+                        
+                        const item = document.createElement('div');
+                        item.className = 'recommendation-card';
+                        item.innerHTML = `
+                            <h4>${hotel.name}</h4>
+                            <div class="rating">${stars} (${hotel.rating})</div>
+                            <p><i class="fas fa-map-marker-alt icon"></i> ${hotel.location}</p>
+                            <p><i class="fas fa-tag icon"></i> ₹${hotel.price} per night</p>
+                            <p><i class="fas fa-concierge-bell icon"></i> ${hotel.amenities}</p>
+                        `;
+                        
+                        hotelList.appendChild(item);
+                    });
+                },
+
+                renderFoods() {
+                    const foodList = document.querySelector('.food-list');
+                    foodList.innerHTML = '';
+                    
+                    if (this.state.foods.length === 0) {
+                        foodList.innerHTML = '<p>No restaurants found.</p>';
+                        return;
+                    }
+                    
+                    this.state.foods.forEach(food => {
+                        const stars = '★'.repeat(Math.floor(food.rating));
+                        const priceIndicator = '₹'.repeat(Math.ceil(food.price / 300));
+                        
+                        const item = document.createElement('div');
+                        item.className = 'recommendation-card';
+                        item.innerHTML = `
+                            <h4>${food.name}</h4>
+                            <div class="rating">${stars} (${food.rating})</div>
+                            <p><strong>Cuisine:</strong> ${food.cuisine}</p>
+                            <p><strong>Specialty:</strong> ${food.specialty}</p>
+                            <p><strong>Price:</strong> ${priceIndicator} (Approx. ₹${food.price} for two)</p>
+                            <p><i class="fas fa-map-marker-alt icon"></i> ${food.location}</p>
+                        `;
+                        
+                        foodList.appendChild(item);
+                    });
+                },
+
+                updateBudgetAnalysis() {
+                    const totalExpenses = this.state.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+                    const budgetLimit = this.state.budgetLimit;
+                    
+                    if (budgetLimit <= 0) return;
+                    
+                    const utilization = (totalExpenses / budgetLimit) * 100;
+                    const progressBar = document.getElementById('budget-progress');
+                    const budgetStatus = document.getElementById('budget-status');
+                    
+                    progressBar.style.width = `${utilization}%`;
+                    budgetStatus.textContent = `Budget utilization: ${utilization.toFixed(1)}%`;
+                    
+                    // Change color based on utilization
+                    if (utilization > 90) {
+                        progressBar.className = 'progress danger';
+                    } else if (utilization > 70) {
+                        progressBar.className = 'progress warning';
+                    } else {
+                        progressBar.className = 'progress';
+                    }
+                    
+                    // Update category breakdown
+                    const categories = {};
+                    this.state.expenses.forEach(expense => {
+                        if (!categories[expense.category]) {
+                            categories[expense.category] = 0;
+                        }
+                        categories[expense.category] += expense.amount;
+                    });
+                    
+                    let breakdownHTML = '<h4>Expense Breakdown:</h4>';
+                    for (const category in categories) {
+                        breakdownHTML += `<p>${category.charAt(0).toUpperCase() + category.slice(1)}: ₹${categories[category]}</p>`;
+                    }
+                    
+                    document.getElementById('category-breakdown').innerHTML = breakdownHTML;
+                },
+
+                // Delete methods
+                deleteActivity(activityName) {
+                    this.state.activities = this.state.activities.filter(a => a.name !== activityName);
+                    this.renderActivities();
+                },
+
+                deleteExpense(expenseName) {
+                    this.state.expenses = this.state.expenses.filter(e => e.name !== expenseName);
+                    this.renderExpenses();
+                    this.updateBudgetAnalysis();
+                },
+
+                // Load/Save state (simplified for demo)
+                loadState() {
+                    // In a real app, this would load from localStorage or a backend
+                    console.log("Loading state...");
+                },
+
+                saveState() {
+                    // In a real app, this would save to localStorage or a backend
+                    console.log("Saving state...");
+                }
+            };
+
+            TripPlanner.init();
+        });
+    </script>
+</body>
+</html>
